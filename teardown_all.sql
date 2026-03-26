@@ -3,19 +3,12 @@ TEARDOWN ALL - Agent Multicontext Demo
 WARNING: This will DELETE all demo objects. Cannot be undone.
 ==============================================================================*/
 
--- Drop SPCS service first (must stop before compute pool can be dropped)
+-- Drop SPCS service first, then suspend and drop the compute pool
 DROP SERVICE IF EXISTS SNOWFLAKE_EXAMPLE.AGENT_MULTICONTEXT.AGENT_APP;
-ALTER COMPUTE POOL IF EXISTS SFE_AGENT_MULTICONTEXT_POOL STOP ALL;
+ALTER COMPUTE POOL SFE_AGENT_MULTICONTEXT_POOL SUSPEND;
 DROP COMPUTE POOL IF EXISTS SFE_AGENT_MULTICONTEXT_POOL;
 
--- Drop row access policies first (must be removed before dropping tables)
-ALTER TABLE SNOWFLAKE_EXAMPLE.AGENT_MULTICONTEXT.VIEWERSHIP_METRICS
-  DROP ROW ACCESS POLICY IF EXISTS station_viewership_policy;
-
-ALTER TABLE SNOWFLAKE_EXAMPLE.AGENT_MULTICONTEXT.MEMBER_ACCOUNTS
-  DROP ROW ACCESS POLICY IF EXISTS station_member_policy;
-
--- Drop project schema (CASCADE removes all objects including Cortex Search service)
+-- Drop project schema (CASCADE removes all objects including RAPs, tables, Cortex Search)
 DROP SCHEMA IF EXISTS SNOWFLAKE_EXAMPLE.AGENT_MULTICONTEXT CASCADE;
 
 -- Drop project warehouse
