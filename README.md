@@ -235,6 +235,7 @@ This project is designed for AI-pair development.
 
 ## References
 
+- [Security Hardening Guide](SECURITY.md) -- Prompt injection, authorization, and trust boundary considerations for this pattern
 - [Cortex Agents Run API](https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-run) -- `agent:run` with and without agent object
 - [Cortex Agents REST API](https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-rest-api) -- CRUD operations for agent objects
 - [Monitor Cortex Agent Requests](https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-monitor) -- Observability and tracing (requires agent object)
