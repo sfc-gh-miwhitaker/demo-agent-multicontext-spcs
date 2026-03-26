@@ -1,48 +1,80 @@
 #!/usr/bin/env bash
-#
-# Build the Docker image and push it to the Snowflake image repository.
-#
-# Prerequisites:
-#   - Docker running locally
-#   - SNOWFLAKE_ACCOUNT env var set (org-account format, e.g. MYORG-MYACCT)
-#   - Snowflake user credentials for docker login
-#
-# Usage:
-#   ./tools/05_build_and_push.sh            # tag as :latest
-#   ./tools/05_build_and_push.sh v2         # tag as :v2
-
 set -euo pipefail
-cd "$(dirname "$0")/.."
 
-TAG="${1:-latest}"
-ACCOUNT="${SNOWFLAKE_ACCOUNT:?Set SNOWFLAKE_ACCOUNT (org-account format, e.g. MYORG-MYACCT)}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$SCRIPT_DIR/.."
+IMAGE_NAME="agent-multicontext"
+IMAGE_TAG="${1:-latest}"
 
-# Snowflake image registry uses lowercase account
-REGISTRY="$(echo "${ACCOUNT}" | tr '[:upper:]' '[:lower:]').registry.snowflakecomputing.com"
-IMAGE_PATH="${REGISTRY}/snowflake_example/agent_multicontext/images/agent-multicontext"
+# Source .env.local if it exists (enables 1Password / secret-manager injection)
+if [[ -f "$PROJECT_ROOT/.env.local" ]]; then
+  # shellcheck disable=SC1091
+  source "$PROJECT_ROOT/.env.local"
+fi
 
-echo "=== Snowflake Image Registry ==="
-echo "Registry : ${REGISTRY}"
-echo "Image    : ${IMAGE_PATH}:${TAG}"
+# Auto-detect container runtime: prefer podman (open-source), fall back to docker
+if command -v podman &>/dev/null; then
+  RUNTIME="podman"
+elif command -v docker &>/dev/null; then
+  RUNTIME="docker"
+else
+  echo "ERROR: No container runtime found."
+  echo ""
+  echo "Install one of:"
+  echo "  macOS:   brew install podman"
+  echo "  Windows: winget install RedHat.Podman"
+  echo "  Linux:   sudo apt install podman  (or dnf install podman)"
+  echo ""
+  echo "Docker also works but requires a commercial license for business use."
+  exit 1
+fi
+
+echo "Using container runtime: $RUNTIME"
+
+# Prompt for repo URL if not set
+if [[ -z "${SNOWFLAKE_IMAGE_REPO_URL:-}" ]]; then
+  echo ""
+  echo "Copy the image_repo_url from the last result of deploy_all.sql."
+  echo "It looks like: <orgname>-<acctname>.registry.snowflakecomputing.com/snowflake_example/agent_multicontext/images"
+  echo ""
+  read -rp "Snowflake image repository URL: " SNOWFLAKE_IMAGE_REPO_URL
+fi
+
+# Extract the registry host (everything before the first /)
+REGISTRY_HOST="${SNOWFLAKE_IMAGE_REPO_URL%%/*}"
+
+# Prompt for username if not set
+if [[ -z "${SNOWFLAKE_USERNAME:-}" ]]; then
+  echo ""
+  read -rp "Snowflake username: " SNOWFLAKE_USERNAME
+fi
+
+# Prompt for PAT if not set
+if [[ -z "${SNOWFLAKE_REGISTRY_PAT:-}" ]]; then
+  echo ""
+  echo "Generate a PAT in Snowsight: User menu → Programmatic Access Tokens"
+  echo ""
+  read -rsp "Snowflake PAT: " SNOWFLAKE_REGISTRY_PAT
+  echo ""
+fi
+
+FULL_IMAGE_TAG="${SNOWFLAKE_IMAGE_REPO_URL}/${IMAGE_NAME}:${IMAGE_TAG}"
+
 echo ""
+echo "Building image..."
+$RUNTIME build --platform linux/amd64 -t "${IMAGE_NAME}:${IMAGE_TAG}" "$PROJECT_ROOT"
 
-# Step 1: Authenticate with the Snowflake registry
-echo "--- Step 1: Docker login ---"
-echo "Enter your Snowflake username when prompted."
-docker login "${REGISTRY}"
+echo "Tagging as ${FULL_IMAGE_TAG}..."
+$RUNTIME tag "${IMAGE_NAME}:${IMAGE_TAG}" "$FULL_IMAGE_TAG"
 
-# Step 2: Build the image (linux/amd64 required by SPCS)
-echo ""
-echo "--- Step 2: Building image (linux/amd64) ---"
-docker build --platform linux/amd64 -t "${IMAGE_PATH}:${TAG}" .
+echo "Authenticating to ${REGISTRY_HOST}..."
+echo "$SNOWFLAKE_REGISTRY_PAT" | $RUNTIME login "$REGISTRY_HOST" \
+  --username "$SNOWFLAKE_USERNAME" \
+  --password-stdin
 
-# Step 3: Push to Snowflake
-echo ""
-echo "--- Step 3: Pushing to Snowflake ---"
-docker push "${IMAGE_PATH}:${TAG}"
+echo "Pushing image..."
+$RUNTIME push "$FULL_IMAGE_TAG"
 
 echo ""
-echo "=== Done ==="
-echo "Image pushed: ${IMAGE_PATH}:${TAG}"
-echo ""
-echo "Next: Run sql/09_spcs_service.sql in Snowsight to create the service."
+echo "Done. Image pushed to: ${FULL_IMAGE_TAG}"
+echo "You can now run sql/09_spcs_service.sql in Snowsight."
