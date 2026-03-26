@@ -1,0 +1,15 @@
+node_modules/
+.git/
+.pids/
+.env
+*.log
+dist/
+sql/
+tools/
+.claude/
+.cursor/
+.gitignore
+*.md
+LICENSE
+deploy_all.sql
+teardown_all.sql
