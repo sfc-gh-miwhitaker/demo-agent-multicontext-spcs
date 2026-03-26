@@ -40,15 +40,15 @@ spec:
     port: 8080
     public: true
 serviceRoles:
-- name: app-user
+- name: app_user
   endpoints:
   - app
 $$;
 
 -- Grant access to the public endpoint
-GRANT SERVICE ROLE AGENT_APP!app-user TO ROLE SYSADMIN;
-GRANT SERVICE ROLE AGENT_APP!app-user TO ROLE TV_ADMIN_ROLE;
-GRANT SERVICE ROLE AGENT_APP!app-user TO ROLE TV_VIEWER_ROLE;
+GRANT SERVICE ROLE AGENT_APP!app_user TO ROLE SYSADMIN;
+GRANT SERVICE ROLE AGENT_APP!app_user TO ROLE TV_ADMIN_ROLE;
+GRANT SERVICE ROLE AGENT_APP!app_user TO ROLE TV_VIEWER_ROLE;
 
 -- Show the public endpoint URL
 SELECT SYSTEM$GET_SERVICE_STATUS('SNOWFLAKE_EXAMPLE.AGENT_MULTICONTEXT.AGENT_APP') AS service_status;
