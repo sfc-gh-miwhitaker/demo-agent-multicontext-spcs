@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { ChatMessage, AgentContext, Station, ThinkingStep } from '../types';
 import { getStation } from '../utils/buildAgentPayload';
+import { VegaChart } from './VegaChart';
 
 interface AgentChatProps {
   messages: ChatMessage[];
@@ -132,6 +133,11 @@ export function AgentChat({ messages, isLoading, error, context, onSend, onReset
               />
             )}
             <div className="message-body">{msg.content}</div>
+            {msg.charts?.map((chart, ci) => (
+              <div key={ci} className="chart-container">
+                <VegaChart spec={chart.spec} />
+              </div>
+            ))}
           </div>
         ))}
 

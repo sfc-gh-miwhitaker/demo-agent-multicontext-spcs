@@ -75,11 +75,11 @@ EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_AGENT_MULTICONTEXT_REPO
 --    a) Build & push:  ./tools/push.sh
 --    b) Create service: Run deploy_spcs.sql in Snowsight
 
--- 9. Final summary -- surfaces the image push target for the build script
+-- 9. Final summary -- surfaces the repo URL for tools/push.sh
 SHOW IMAGE REPOSITORIES IN SCHEMA SNOWFLAKE_EXAMPLE.AGENT_MULTICONTEXT
   ->> SELECT
         'Agent Multicontext demo deployed successfully!' AS status,
-        "repository_url" || '/agent-multicontext:latest' AS image_push_target,
+        "repository_url"                                 AS image_repo_url,
         CURRENT_TIMESTAMP()                              AS completed_at,
         $DEMO_EXPIRES                                    AS expires
       FROM $1;

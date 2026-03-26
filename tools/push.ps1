@@ -67,6 +67,12 @@ if (-not $env:SNOWFLAKE_IMAGE_REPO_URL) {
     $env:SNOWFLAKE_IMAGE_REPO_URL = Read-Host 'Snowflake image repository URL'
 }
 
+# Normalize: strip trailing slashes and common copy-paste extras
+# (catches pasting the full image path instead of just the repo URL)
+$env:SNOWFLAKE_IMAGE_REPO_URL = $env:SNOWFLAKE_IMAGE_REPO_URL.TrimEnd('/')
+$env:SNOWFLAKE_IMAGE_REPO_URL = $env:SNOWFLAKE_IMAGE_REPO_URL -replace "/$ImageName/images$", ''
+$env:SNOWFLAKE_IMAGE_REPO_URL = $env:SNOWFLAKE_IMAGE_REPO_URL -replace "/$ImageName$", ''
+
 $RegistryHost = ($env:SNOWFLAKE_IMAGE_REPO_URL -split '/')[0]
 
 # Prompt for username if not set

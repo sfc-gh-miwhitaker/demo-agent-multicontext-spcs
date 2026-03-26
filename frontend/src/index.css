@@ -640,3 +640,32 @@ body {
 .inspector-json code {
   white-space: pre;
 }
+
+/* Vega-Lite chart rendering */
+.chart-container {
+  margin-top: 10px;
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 8px;
+  background: #1e293b;
+  padding: 12px;
+}
+
+.vega-chart {
+  width: 100%;
+}
+
+.vega-chart svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.chart-error {
+  padding: 8px 12px;
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 6px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}

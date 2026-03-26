@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import type { AgentContext, ChatMessage, ThinkingStep } from '../types';
+import type { AgentContext, ChatMessage, ChartData, ThinkingStep } from '../types';
 
 const API_BASE = '/api';
 
@@ -19,15 +19,16 @@ function updateAssistantMessage(
   prev: ChatMessage[],
   content: string,
   thinkingSteps: ThinkingStep[],
+  charts: ChartData[],
 ): ChatMessage[] {
   const last = prev[prev.length - 1];
   if (last?.role === 'assistant') {
     return [
       ...prev.slice(0, -1),
-      { ...last, content, thinkingSteps },
+      { ...last, content, thinkingSteps, charts: charts.length ? charts : undefined },
     ];
   }
-  return [...prev, { role: 'assistant', content, timestamp: new Date(), thinkingSteps }];
+  return [...prev, { role: 'assistant', content, timestamp: new Date(), thinkingSteps, charts: charts.length ? charts : undefined }];
 }
 
 export function useAgentChat() {
@@ -83,6 +84,7 @@ export function useAgentChat() {
       const decoder = new TextDecoder();
       let assistantContent = '';
       let thinkingSteps: ThinkingStep[] = [];
+      let charts: ChartData[] = [];
       let currentEvent = '';
 
       while (true) {
@@ -103,12 +105,12 @@ export function useAgentChat() {
               switch (currentEvent) {
                 case 'response.status':
                   thinkingSteps = addThinkingStep(thinkingSteps, 'status', eventData.message);
-                  setMessages(prev => updateAssistantMessage(prev, assistantContent, thinkingSteps));
+                  setMessages(prev => updateAssistantMessage(prev, assistantContent, thinkingSteps, charts));
                   break;
 
                 case 'response.thinking.delta':
                   thinkingSteps = addThinkingStep(thinkingSteps, 'thinking', eventData.text || '');
-                  setMessages(prev => updateAssistantMessage(prev, assistantContent, thinkingSteps));
+                  setMessages(prev => updateAssistantMessage(prev, assistantContent, thinkingSteps, charts));
                   break;
 
                 case 'response.tool_use':
@@ -117,26 +119,37 @@ export function useAgentChat() {
                     'tool_use',
                     `Using ${eventData.name ?? eventData.type}`,
                   );
-                  setMessages(prev => updateAssistantMessage(prev, assistantContent, thinkingSteps));
+                  setMessages(prev => updateAssistantMessage(prev, assistantContent, thinkingSteps, charts));
                   break;
 
                 case 'response.tool_result.status':
                   thinkingSteps = addThinkingStep(thinkingSteps, 'tool_status', eventData.message);
-                  setMessages(prev => updateAssistantMessage(prev, assistantContent, thinkingSteps));
+                  setMessages(prev => updateAssistantMessage(prev, assistantContent, thinkingSteps, charts));
                   break;
 
                 case 'response.tool_result.analyst.delta': {
                   const think = eventData.delta?.think;
                   if (think) {
                     thinkingSteps = addThinkingStep(thinkingSteps, 'thinking', think);
-                    setMessages(prev => updateAssistantMessage(prev, assistantContent, thinkingSteps));
+                    setMessages(prev => updateAssistantMessage(prev, assistantContent, thinkingSteps, charts));
+                  }
+                  break;
+                }
+
+                case 'response.chart': {
+                  try {
+                    const spec = JSON.parse(eventData.chart_spec);
+                    charts = [...charts, { toolUseId: eventData.tool_use_id ?? '', spec }];
+                    setMessages(prev => updateAssistantMessage(prev, assistantContent, thinkingSteps, charts));
+                  } catch {
+                    // skip malformed chart spec
                   }
                   break;
                 }
 
                 case 'response.text.delta':
                   assistantContent += eventData.text || '';
-                  setMessages(prev => updateAssistantMessage(prev, assistantContent, thinkingSteps));
+                  setMessages(prev => updateAssistantMessage(prev, assistantContent, thinkingSteps, charts));
                   break;
 
                 case 'metadata':

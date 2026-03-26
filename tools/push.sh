@@ -40,6 +40,12 @@ if [[ -z "${SNOWFLAKE_IMAGE_REPO_URL:-}" ]]; then
   read -rp "Snowflake image repository URL: " SNOWFLAKE_IMAGE_REPO_URL
 fi
 
+# Normalize: strip trailing slashes and common copy-paste extras
+# (catches pasting the full image path instead of just the repo URL)
+SNOWFLAKE_IMAGE_REPO_URL="${SNOWFLAKE_IMAGE_REPO_URL%/}"
+SNOWFLAKE_IMAGE_REPO_URL="${SNOWFLAKE_IMAGE_REPO_URL%/${IMAGE_NAME}/images}"
+SNOWFLAKE_IMAGE_REPO_URL="${SNOWFLAKE_IMAGE_REPO_URL%/${IMAGE_NAME}}"
+
 # Extract the registry host (everything before the first /)
 REGISTRY_HOST="${SNOWFLAKE_IMAGE_REPO_URL%%/*}"
 

@@ -23,11 +23,17 @@ export interface ThinkingStep {
   timestamp: Date;
 }
 
+export interface ChartData {
+  toolUseId: string;
+  spec: object;
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
   thinkingSteps?: ThinkingStep[];
+  charts?: ChartData[];
 }
 
 export interface AgentContext {
