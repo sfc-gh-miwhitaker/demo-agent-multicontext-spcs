@@ -90,7 +90,7 @@ $FullImageTag = "$($env:SNOWFLAKE_IMAGE_REPO_URL)/$($ImageName):$($ImageTag)"
 
 Write-Host ''
 Write-Host 'Building image...'
-& $Runtime build --platform linux/amd64 -t "${ImageName}:${ImageTag}" $ProjectRoot
+& $Runtime build -t "${ImageName}:${ImageTag}" $ProjectRoot
 if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 
 Write-Host "Tagging as $FullImageTag..."
@@ -109,4 +109,4 @@ if ($LASTEXITCODE -ne 0) { throw "Push failed" }
 
 Write-Host ''
 Write-Host "Done. Image pushed to: $FullImageTag"
-Write-Host 'You can now run sql/09_spcs_service.sql in Snowsight.'
+Write-Host 'You can now run deploy_spcs.sql in Snowsight.'

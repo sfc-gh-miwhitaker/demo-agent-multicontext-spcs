@@ -77,4 +77,4 @@ $RUNTIME push "$FULL_IMAGE_TAG"
 
 echo ""
 echo "Done. Image pushed to: ${FULL_IMAGE_TAG}"
-echo "You can now run sql/09_spcs_service.sql in Snowsight."
+echo "You can now run deploy_spcs.sql in Snowsight."

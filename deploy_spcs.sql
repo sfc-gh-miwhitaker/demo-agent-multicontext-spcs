@@ -1,7 +1,11 @@
 /*==============================================================================
-09 - SPCS SERVICE
-Create the containerized web application.
-Run AFTER pushing the Docker image (tools/05_build_and_push.sh).
+DEPLOY SPCS - Agent Multicontext Demo
+Pair-programmed by SE Community + Cortex Code | Expires: 2026-04-02
+
+Creates the Snowpark Container Services service for the web application.
+Run AFTER deploy_all.sql and tools/push.sh.
+
+INSTRUCTIONS: Open in Snowsight -> Click "Run All"
 ==============================================================================*/
 
 USE ROLE SYSADMIN;
@@ -50,6 +54,12 @@ GRANT SERVICE ROLE AGENT_APP!app_user TO ROLE SYSADMIN;
 GRANT SERVICE ROLE AGENT_APP!app_user TO ROLE TV_ADMIN_ROLE;
 GRANT SERVICE ROLE AGENT_APP!app_user TO ROLE TV_VIEWER_ROLE;
 
--- Show the public endpoint URL
-SELECT SYSTEM$GET_SERVICE_STATUS('SNOWFLAKE_EXAMPLE.AGENT_MULTICONTEXT.AGENT_APP') AS service_status;
-SHOW ENDPOINTS IN SERVICE AGENT_APP;
+-- Check service status + surface the app URL
+CALL SYSTEM$WAIT_FOR_SERVICES(300, 'SNOWFLAKE_EXAMPLE.AGENT_MULTICONTEXT.AGENT_APP');
+
+SHOW ENDPOINTS IN SERVICE AGENT_APP
+  ->> SELECT
+        'Open this URL in your browser:' AS next_step,
+        "ingress_url"                    AS app_url
+      FROM $1
+      WHERE "name" = 'app';

@@ -59,13 +59,13 @@ User picks station + tier
 2. Gate it behind the appropriate `userType` check
 3. Update `buildOrchestrationInstructions()` to guide the agent on when to use it
 4. Mirror the change in `frontend/src/utils/buildAgentPayload.ts` for the API Inspector
-5. If the tool needs a new Snowflake object, add it to both `deploy_all.sql` and `teardown_all.sql`
+5. If the tool needs a new Snowflake object, add it to `deploy_all.sql` (or `deploy_spcs.sql` for service-level changes) and `teardown_all.sql`
 
 ## Extension Playbook: Adding a New Tier
 
 1. Add the tier to the `if/else` chain in `buildSystemInstructions()`, `buildResponseInstructions()`, `buildOrchestrationInstructions()`, and `buildTools()`
 2. Create the corresponding Snowflake role in `sql/06_roles_and_grants.sql` and `deploy_all.sql`
-3. Add the role to teardown
+3. Grant the service role in `deploy_spcs.sql` and add the role to `teardown_all.sql`
 4. Mirror in `frontend/src/utils/buildAgentPayload.ts`
 
 ## Station Branding

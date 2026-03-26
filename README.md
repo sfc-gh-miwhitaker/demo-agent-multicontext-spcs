@@ -7,9 +7,9 @@
 
 ![Agent Multicontext Demo](assets/demo-screenshot.png)
 
-Inspired by a real customer question: *"How do I pass user identity and tenant context to a Cortex Agent without stuffing it into every message?"*
+When a customer asks for multitenant AI -- different users, different permissions, different brands, all through one application -- it can feel heavy before you've even started. This demo shows it doesn't have to be.
 
-This demo answers that question with a working React + Node.js app backed by the Snowflake Agent Run API's **"without agent object"** endpoint -- where every request carries its own system prompt, tool set, and RBAC role. A live API Inspector in the sidebar shows exactly what gets sent to Snowflake on every turn.
+**One endpoint. Infinite profiles.** A working React + Node.js app backed by the Snowflake Agent Run API's "without agent object" endpoint, where every request carries its own system prompt, tool set, and RBAC role. Three layers make it work: **Authenticate** (reuse the app's existing auth), **Build** (assemble the right payload per request), **Experience** (change everything without reloading).
 
 **Pair-programmed by:** SE Community + Cortex Code
 **Created:** 2026-03-03 | **Expires:** 2026-04-02 | **Status:** ACTIVE
@@ -21,24 +21,36 @@ This demo answers that question with a working React + Node.js app backed by the
 
 ## The Problem
 
-A public-television network runs four local stations -- WETA, KQED, WGBH, WNET. Each station has its own brand, its own member base, and its own viewership data. They want a single support agent that:
+A public television network runs four local stations -- WETA, KQED, WGBH, WNET. Each station has its own brand, its own member base, and its own viewership data. They want one AI support experience across all four stations.
 
-- Greets users as *"the WETA Support Agent"* or *"the KQED Support Agent"* depending on which station they came from
-- Shows anonymous visitors only the knowledge base
-- Lets logged-in members query their own viewership data
-- Gives station admins full analytics across members and metrics
+Their public-facing app already handles authentication -- anonymous visitors, logged-in members, and station admins all hit the same application. Asking them to rebuild their entire access plane in Snowflake with Azure AD and External OAuth is an invasive, heavy lift. It's not the right move for their existing architecture.
 
-The obvious API choice -- `POST /api/v2/databases/{db}/schemas/{schema}/agents/{name}:run` -- creates a fixed agent object. Its `instructions` and `tools` are locked at creation time. You can't swap the system prompt or tool list per request.
+And then there's the anonymous user problem. Snowflake requires a role and a session for every query. Public apps have visitors who aren't logged in at all. The common workaround -- prepending *"remember, my user ID is 42"* into every message -- is fragile, pollutes conversation history, and mixes data with intent.
 
-The common workaround -- prepending *"Do not repeat, but remember: my user id is xxxxx"* to every user message -- is fragile, pollutes conversation history, and mixes data with intent.
+The key realization: their app already knows everything we need. The question isn't *"how do we recreate identity in Snowflake"* -- it's *"how do we pass it through."*
 
 ---
 
-## The Approach
+## The Pattern: Authenticate, Build, Experience
 
-### 1. The "without agent object" endpoint
+The answer is an endpoint most of us haven't reached for yet: `POST /api/v2/cortex/agent:run` -- no agent object, no pre-registration. You send the entire agent specification inline per request. The app becomes the context builder. Snowflake is the engine.
 
-Instead of creating an agent object, call `POST /api/v2/cortex/agent:run` directly. This endpoint accepts the full agent specification inline -- system prompt, tools, response style -- so every request can be different.
+### Layer 1: Authenticate -- Reuse, Don't Recreate
+
+The customer's app already handles auth. Don't rebuild it -- just pass the identity through. Each tier maps to a Snowflake role via the `X-Snowflake-Role` header, which activates Row Access Policies at the SQL layer. No External OAuth required.
+
+| Tier | Who they are | Snowflake Role |
+|------|-------------|----------------|
+| **Anonymous** | No user ID | _(default)_ |
+| **Basic Member** | User ID + name | `TV_VIEWER_ROLE` |
+| **Station Admin** | User ID + admin flag | `TV_ADMIN_ROLE` |
+
+> [!TIP]
+> **Pattern demonstrated:** `X-Snowflake-Role` header + Row Access Policies for per-request RBAC -- data isolation enforced at the SQL layer, invisible to the agent.
+
+### Layer 2: Build -- Capabilities Change by Role
+
+A thin proxy reads the user's tier and assembles the full API request on the fly. The `instructions.system` field carries per-request identity and branding. The `tools` array changes based on who's asking. The `X-Snowflake-Role` header sets the execution role. All per-request.
 
 ```json
 {
@@ -52,34 +64,27 @@ Instead of creating an agent object, call `POST /api/v2/cortex/agent:run` direct
 }
 ```
 
-> [!TIP]
-> **Pattern demonstrated:** `instructions.system` for per-request identity injection -- the production alternative to stuffing context into user messages.
+| Tier | Tools Available |
+|------|----------------|
+| **Anonymous** | Cortex Search (KB) only |
+| **Basic Member** | Search + Analyst (viewership) |
+| **Station Admin** | Search + full Analyst (metrics, members) |
 
-### 2. Three authorization tiers
-
-The Node.js backend builds a different payload for each tier. The frontend's user picker lets you switch instantly.
-
-| Tier | User Context | Tools | Snowflake Role |
-|------|-------------|-------|----------------|
-| **Anonymous** | No user ID | Cortex Search (KB) only | _(default)_ |
-| **Basic Member** | User ID + name in system prompt | Search + Analyst (viewership) | `TV_VIEWER_ROLE` |
-| **Station Admin** | User ID + admin flag in system prompt | Search + full Analyst (metrics, members) | `TV_ADMIN_ROLE` |
-
-The `X-Snowflake-Role` header on every request activates the matching Row Access Policy in Snowflake -- data isolation enforced at the SQL layer, invisible to the agent.
+The agent literally cannot call a tool it wasn't given.
 
 > [!TIP]
-> **Pattern demonstrated:** `X-Snowflake-Role` header + Row Access Policies for per-request RBAC -- no separate agent objects per tenant.
+> **Pattern demonstrated:** `instructions.system` for identity injection + dynamic `tools` array -- the production alternative to stuffing context into user messages.
 
-### 3. Station branding without duplication
+### Layer 3: Experience -- Change Everything Without Reloading
 
-The system prompt opens with *"You are the WETA Support Agent"* or *"You are the KQED Support Agent"* depending on which station the user arrives from. One codebase, one API call, four branded experiences.
+Switch roles, switch stations, and the very next message carries completely new context. No page refresh. No new session. The UI stays put and the payload changes underneath.
+
+That's only possible because nothing is locked in an agent object. The `agent:run` endpoint most of us reach for takes a path to a named object whose instructions and tools are fixed at creation time. The "without agent object" variant accepts the full spec inline. That's the unlock.
+
+A sidebar **API Inspector** shows the exact JSON payload sent to Snowflake on every turn -- toggle between `instructions`, `tools`, and the full request body to see how context changes as you switch users and stations.
 
 > [!TIP]
-> **Pattern demonstrated:** Dynamic `instructions.system` for white-label branding -- swap identity per request without creating separate agent objects per tenant.
-
-### 4. Live API Inspector
-
-A sidebar panel shows the exact JSON payload sent to Snowflake on every turn. Toggle between `instructions`, `tools`, and the full request body to see how the context changes as you switch users and stations.
+> **Pattern demonstrated:** One codebase, one endpoint, four stations, three tiers -- every combination assembled fresh on every turn.
 
 ---
 
@@ -121,7 +126,7 @@ flowchart LR
 
 After deployment, three interfaces let you explore the demo:
 
-- **React App** -- Switch users, switch stations, chat with the agent, and inspect the live API payload. Navigate to `http://localhost:3000` after starting services.
+- **React App** -- Switch users, switch stations, chat with the agent, and inspect the live API payload. The app URL is shown in the final output of `deploy_spcs.sql`.
 - **API Inspector** -- Toggle between `instructions`, `tools`, and `full payload` tabs to see exactly what changes per request.
 - **Observability Queries** -- Paste queries from `sql/07_observability_queries.sql` into Snowsight to see agent credits, token usage, and Analyst request logs.
 
@@ -134,7 +139,7 @@ After deployment, three interfaces let you explore the demo:
 ---
 
 <details>
-<summary><strong>Deploy (5 steps, ~10 minutes)</strong></summary>
+<summary><strong>Deploy (4 steps, ~10 minutes)</strong></summary>
 
 > [!IMPORTANT]
 > Requires **Enterprise** edition, `SYSADMIN` + `ACCOUNTADMIN` role access, and Cortex AI enabled in your region.
@@ -143,30 +148,21 @@ After deployment, three interfaces let you explore the demo:
 
 Copy [`deploy_all.sql`](deploy_all.sql) into a Snowsight worksheet and click **Run All**.
 
-**Step 2 -- Set environment variables:**
+**Step 2 -- Build and push the container image:**
 
 ```bash
-export SNOWFLAKE_ACCOUNT="myorg-myaccount"
-export SNOWFLAKE_PAT="your-personal-access-token"
+./tools/push.sh
 ```
 
-Get a PAT: Snowsight > Settings > Authentication > Personal Access Tokens
+Builds the Docker image and pushes it to the Snowflake image repository. The repo URL is shown in the final output of Step 1.
 
-**Step 3 -- Start services:**
+**Step 3 -- Create the SPCS service:**
 
-```bash
-./tools/02_start.sh
-```
+Run [`deploy_spcs.sql`](deploy_spcs.sql) in Snowsight. The final output shows the app URL.
 
-Installs deps, starts backend on `:3001` and frontend on `:3000`.
+**Step 4 -- Cleanup:**
 
-**Step 4 -- Open the app:**
-
-Navigate to `http://localhost:3000`
-
-**Step 5 -- Cleanup:**
-
-Run `teardown_all.sql` in Snowsight, then `./tools/04_stop.sh`
+Run [`teardown_all.sql`](teardown_all.sql) in Snowsight.
 
 ### What Gets Created
 
@@ -174,34 +170,34 @@ Run `teardown_all.sql` in Snowsight, then `./tools/04_stop.sh`
 |---|---|---|
 | Schema | `SNOWFLAKE_EXAMPLE.AGENT_MULTICONTEXT` | Demo schema |
 | Warehouse | `SFE_AGENT_MULTICONTEXT_WH` | Demo compute |
-| Cortex Search Service | `KB_SEARCH` | Knowledge base search |
+| Tables | `STATION_INFO`, `PROGRAMMING_SCHEDULE`, `VIEWERSHIP_METRICS`, `MEMBER_ACCOUNTS`, `SUPPORT_ARTICLES`, `USER_STATION_MAPPING` | Source data |
+| Cortex Search Service | `SUPPORT_KB_SEARCH` | Knowledge base search |
 | Semantic View | `SV_AGENT_MULTICONTEXT_VIEWERSHIP` | Viewership analytics for Cortex Analyst |
-| Tables | `RAW_*`, `MEMBERS`, `STATIONS` | Source data |
-| Row Access Policies | `RAP_STATION_*` | Station-scoped data isolation |
+| Row Access Policies | `STATION_VIEWERSHIP_POLICY`, `STATION_MEMBER_POLICY` | Station-scoped data isolation |
 | Roles | `TV_VIEWER_ROLE`, `TV_ADMIN_ROLE` | Authorization tiers |
+| Image Repository | `IMAGES` | Container image storage |
+| Compute Pool | `SFE_AGENT_MULTICONTEXT_POOL` | SPCS compute |
+| Service | `AGENT_APP` | Web application (created by `deploy_spcs.sql`) |
 
 ### Estimated Costs
 
 | Component | Size | Est. Credits/Hour |
 |---|---|---|
 | Warehouse (SFE_AGENT_MULTICONTEXT_WH) | X-SMALL | 1 |
+| Compute Pool (SFE_AGENT_MULTICONTEXT_POOL) | CPU_X64_XS | ~0.6 |
 | Cortex Search Service | Serverless | ~0.1 |
 | Cortex Agent calls | Per-query | ~0.01/query |
 | Cortex Analyst calls | Per-query | ~0.01/query |
-| **Total** | | **<2 credits** for full deployment + 1 hour of exploration |
+| **Total** | | **~2 credits** for full deployment + 1 hour of exploration |
 
 ### Operations
 
 | Script | Purpose |
 |--------|---------|
-| `./tools/02_start.sh` | Install deps, start backend + frontend |
-| `./tools/03_status.sh` | Check service health and port status |
-| `./tools/04_stop.sh` | Stop all services |
+| `./tools/push.sh` | Build and push container image to Snowflake |
+| `./tools/push.ps1` | Same, for Windows (PowerShell) |
+| [`deploy_spcs.sql`](deploy_spcs.sql) | Create/redeploy the SPCS service |
 | `sql/07_observability_queries.sql` | Ad-hoc observability queries (run individually in Snowsight) |
-
-- **Backend:** http://localhost:3001 (Express proxy to Snowflake)
-- **Frontend:** http://localhost:3000 (Vite dev server, proxies `/api` to backend)
-- **Health check:** http://localhost:3001/health
 
 </details>
 
@@ -210,18 +206,18 @@ Run `teardown_all.sql` in Snowsight, then `./tools/04_stop.sh`
 
 | Symptom | Fix |
 |---------|-----|
-| Backend exits immediately | `SNOWFLAKE_ACCOUNT` or `SNOWFLAKE_PAT` not set. Run `./tools/03_status.sh` to check. |
-| Port 3000/3001 already in use | Another process is using the port. Run `lsof -ti :3000` to find it, or `./tools/04_stop.sh` if it's a previous run. |
-| "Failed to create thread" in chat | Verify PAT is valid and not expired. Check `http://localhost:3001/health` for account connectivity. |
+| Service stays in PENDING | Check compute pool status: `SHOW COMPUTE POOLS`. Pool may still be provisioning. |
+| `ingress_url` is NULL | Service is still starting. Re-run `SHOW ENDPOINTS IN SERVICE AGENT_APP` after a minute. |
+| "Failed to create thread" in chat | Verify PAT is valid and not expired. |
 | Agent returns empty responses | Cortex Search service needs time to index after deploy. Wait a few minutes and retry. |
 | Analyst tool errors | Verify `SFE_AGENT_MULTICONTEXT_WH` is running and the semantic view exists in `SEMANTIC_MODELS`. |
+| Build crashes with `lfstack.push` | Apple Silicon + `--platform linux/amd64` on the build stage. The Dockerfile builds Stage 1 natively to avoid this. |
 
 </details>
 
 ## Cleanup
 
 1. Run [`teardown_all.sql`](teardown_all.sql) in Snowsight
-2. Stop local services: `./tools/04_stop.sh`
 
 <details>
 <summary><strong>Development Tools</strong></summary>

@@ -1,6 +1,5 @@
 node_modules/
 .git/
-.pids/
 .env
 *.log
 dist/
@@ -12,4 +11,5 @@ tools/
 *.md
 LICENSE
 deploy_all.sql
+deploy_spcs.sql
 teardown_all.sql

@@ -3,12 +3,13 @@
 Demonstrates per-request context injection using the Snowflake Agent Run API "without agent object" endpoint for a TV network use case.
 
 ## Project Structure
-- `deploy_all.sql` -- Single entry point (Run All in Snowsight)
+- `deploy_all.sql` -- Stage 1: Snowflake objects + SPCS infra (Run All in Snowsight)
+- `deploy_spcs.sql` -- Stage 3: Create the SPCS service (Run All in Snowsight, after image push)
 - `teardown_all.sql` -- Complete cleanup
-- `sql/` -- Individual SQL scripts (numbered 01-06)
+- `sql/` -- Individual SQL scripts (numbered 01-08), run by deploy_all.sql
 - `backend/` -- Node.js/Express proxy with context builder
 - `frontend/` -- React app with chat UI and API inspector
-- `tools/` -- Operational scripts (start, status, stop)
+- `tools/` -- Build and push scripts (bash + PowerShell)
 - `.claude/skills/` -- Project-specific AI skills
 
 ## Snowflake Environment
@@ -26,13 +27,13 @@ Demonstrates per-request context injection using the Snowflake Agent Run API "wi
 ## Development Standards
 - SQL: Explicit columns, sargable predicates, QUALIFY for window functions
 - Objects: COMMENT with expiration date on all objects
-- Deploy: One-command deployment via deploy_all.sql
+- Deploy: 3-stage (deploy_all.sql -> build & push image -> deploy_spcs.sql)
 - All new objects need COMMENT = 'DEMO: ... (Expires: 2026-04-02)'
 
 ## When Helping with This Project
 - Follow SFE naming conventions (SFE_ prefix for account-level objects)
 - Use QUALIFY instead of subqueries for window function filtering
-- Keep deploy_all.sql as the single entry point
+- Keep the 3-stage deploy flow: deploy_all.sql -> build & push -> deploy_spcs.sql
 - The backend context builder in `backend/server.js` is the authoritative source for payload construction
 - The frontend `buildAgentPayload.ts` mirrors the backend logic for the API Inspector preview
 - For key-pair JWT auth instead of PAT, see [`guide-api-agent-context/migrate_pat_to_keypair_jwt.md`](../guide-api-agent-context/migrate_pat_to_keypair_jwt.md)

@@ -1,5 +1,4 @@
 node_modules/
-.pids/
 dist/
 .env
 .env.local
