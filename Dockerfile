@@ -1,5 +1,5 @@
-# Stage 1: Build the React frontend
-FROM --platform=linux/amd64 node:20-alpine AS frontend-build
+# Stage 1: Build the React frontend (native platform -- output is static files)
+FROM node:20-alpine AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm ci

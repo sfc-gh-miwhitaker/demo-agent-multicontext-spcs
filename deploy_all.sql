@@ -71,12 +71,17 @@ EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_AGENT_MULTICONTEXT_REPO
 -- 7. SPCS infrastructure (image repository + compute pool)
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_AGENT_MULTICONTEXT_REPO/branches/main/sql/08_spcs_infra.sql';
 
--- 8. SPCS service (run AFTER pushing the Docker image)
+-- 8. Surface the image repository URL (RESULT_SCAN doesn't propagate from EXECUTE IMMEDIATE)
+SHOW IMAGE REPOSITORIES IN SCHEMA SNOWFLAKE_EXAMPLE.AGENT_MULTICONTEXT;
+
+-- 9. SPCS service (run AFTER pushing the Docker image)
 --    a) Build & push:  ./tools/05_build_and_push.sh
 --    b) Create service: Run sql/09_spcs_service.sql in Snowsight
 
--- 9. Final summary
+-- 10. Final summary
 SELECT
     'Agent Multicontext demo deployed successfully!' AS status,
+    "repository_url" || '/agent-multicontext:latest' AS image_push_target,
     CURRENT_TIMESTAMP()                              AS completed_at,
-    $DEMO_EXPIRES                                    AS expires;
+    $DEMO_EXPIRES                                    AS expires
+FROM TABLE(RESULT_SCAN(LAST_QUERY_ID()));
